@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canyon Apex Arcade</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050508;
+            font-family: 'Courier New', Courier, monospace;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100vw;
+            height: 100vh;
+        }
+        #game-container {
+            position: relative;
+            box-shadow: 0 0 40px rgba(255, 0, 85, 0.3);
+            border: 4px solid #1a1a24;
+            background: #000;
+        }
+        canvas {
+            display: block;
+            background: #000;
+        }
+        /* Hidden Cheat Override Console Window */
+        #cheat-modal {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(10, 10, 16, 0.95);
+            border: 2px solid #ff0055;
+            color: #00ffcc;
+            padding: 20px;
+            width: 320px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            z-index: 100;
+            text-align: center;
+        }
+        #cheat-modal h3 {
+            margin-top: 0;
+            color: #ff0055;
+            letter-spacing: 2px;
+            font-size: 16px;
+        }
+        #cheat-modal input {
+            background: #14141f;
+            border: 1px solid #00ffcc;
+            color: #fff;
+            padding: 8px;
+            width: 100%;
+            margin-bottom: 15px;
+            text-align: center;
+            font-family: monospace;
+        }
+        #cheat-modal button {
+            background: #ff0055;
+            color: #fff;
+            border: none;
+            padding: 8px 15px;
+            cursor: pointer;
+            font-weight: bold;
+            font-family: monospace;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        #cheat-modal button:hover {
+            background: #ff3377;
+        }
+        #cheat-modal .cheat-ops {
+            display: none;
+            margin-top: 15px;
+            border-top: 1px dashed #00ffcc;
+            padding-top: 15px;
+        }
+        #cheat-modal .cheat-ops button {
+            background: #00ffcc;
+            color: #000;
+            margin-bottom: 8px;
+        }
+        #cheat-modal .cheat-ops button:hover {
+            background: #33ffdd;
+        }
+        #cheat-modal .close-btn {
+            background: #444 !important;
+            color: #fff !important;
+        }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="1024" height="640"></canvas>
+    
+    <!-- Secret Security Override Console -->
+    <div id="cheat-modal">
+        <h3>SECURITY OVERRIDE</h3>
+        <div id="auth-section">
+            <p style="font-size: 12px; color: #aaa;">ENTER AUTHORIZATION KEY</p>
+            <input type="password" id="cheat-key" placeholder="••••••••">
+            <button id="auth-btn">SUBMIT KEY</button>
+        </div>
+        <div id="ops-section" class="cheat-ops">
+            <p style="font-size: 12px; color: #00ffcc; margin-bottom: 10px;">ACCESS GRANTED</p>
+            <button id="toggle-ghost">TOGGLE GHOST MODE: OFF</button>
+            <button id="toggle-dilation">TIME DILATION: OFF</button>
+            <button id="swap-car">POSITION REALIGNMENT</button>
+        </div>
+        <button class="close-btn" id="close-cheat">RESUME SIMULATION</button>
+    </div>
+</div>
+
+<script>
+/**
+ * Canyon Apex Arcade Racing Engine
+ * Enhanced AI Competitiveness, 15-Second Lap Recalibration, & True Finish Archways.
+ */
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// --- SIMULATION PARAMETERS ---
+const WIDTH = canvas.width;
+const HEIGHT = canvas.height;
+const ROAD_Y = HEIGHT * 0.55; 
+const SEGMENT_LENGTH = 150; 
+const RUMBLE_LENGTH = 3; 
+
+// Recalibration: Max speed 90 * 60 FPS = 5400 units/sec. 15 secs * 5400 = 81000 lap length.
+// 81000 / 150 segment length = exactly 540 segments per lap milestone.
+const TRACK_LENGTH_SEGMENTS = 540; 
+
+const MAX_SPEED = 90; 
+const ACCEL = 0.53; // Slightly optimized throttle injection response
+const FRICTION = 0.85; 
+const BRAKE_DECEL = 1.5;
+const OFF_ROAD_DECEL = 2.0;
+const STEER_SPEED = 0.035;
+const CENTRIFUGAL_FORCE = 0.0018;
+
+// Nitro system variables
+const NITRO_SPEED_BOOST = 35;
+const NITRO_DURATION = 120; 
+
+// Input state tracking bounds
+const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
+let spaceTapCount = 0;
+const SPACE_TAP_WINDOW = 350; 
+let spaceTimeout = null;
+
+// Modifier states
+let ghostMode = false;
+let timeDilation = false;
+let hornVisualTimer = 0;
+
+// Player data tracking
+let playerX = 0; 
+let playerZ = 0; 
+let speed = 0;
+let playerLap = 1;
+const TOTAL_LAPS = 10;
+let nitroCharges = 1;
+let nitroActiveTimer = 0;
+
+// Central wheel security trigger trackers
+let wheelClickCount = 0;
+let lastWheelClickTime = 0;
+
+// Global Game State Machine
+let gameState = 'COUNTDOWN'; // COUNTDOWN, RACING, FINISHED
+let countdownTimer = 180; 
+
+const segments = [];
+const totalAI = 19;
+const aiDrivers = [];
+
+// Color palette mapping profiles
+const COLORS = {
+    SKY: '#020205',
+    MOUNTAIN_DARK: '#100c14',
+    MOUNTAIN_LIGHT: '#1f1826',
+    WALL_LEFT: '#2c2236',
+    WALL_RIGHT: '#251b2e',
+    ROAD: '#1b1b22',
+    GUARD_RED: '#b3002d',
+    GUARD_WHITE: '#e6e6e6',
+    CHEVRON_BG: '#111',
+    CHEVRON_FG: '#ffcc00'
+};
+
+// --- SIMULATION DATA INSTANTIATION ---
+
+function buildTrack() {
+    let currentCurve = 0;
+    let currentHill = 0;
+
+    for (let i = 0; i < TRACK_LENGTH_SEGMENTS; i++) {
+        // Sculpt compressed curves across 540 segments to fit 15 seconds perfectly
+        if (i > 60 && i < 120) currentCurve = 1.9;
+        else if (i > 160 && i < 240) currentCurve = -2.4;
+        else if (i > 300 && i < 380) currentCurve = 3.2;
+        else if (i > 440 && i < 500) currentCurve = -1.8;
+        else currentCurve = 0;
+
+        if (i > 80 && i < 180) currentHill = Math.sin(i / 20) * 12;
+        else if (i > 320 && i < 420) currentHill = Math.cos(i / 25) * 16;
+        else currentHill = 0;
+
+        // True physical checkered grid markers assignment logic
+        let isFinish = (i >= 0 && i <= 4);
+
+        segments.push({
+            index: i,
+            p1: { x: 0, y: 0, z: i * SEGMENT_LENGTH },
+            p2: { x: 0, y: 0, z: (i + 1) * SEGMENT_LENGTH },
+            curve: currentCurve,
+            hill: currentHill,
+            color: {
+                rumble: Math.floor(i / RUMBLE_LENGTH) % 2 === 0 ? COLORS.GUARD_RED : COLORS.GUARD_WHITE,
+                road: COLORS.ROAD
+            },
+            finishLine: isFinish
+        });
+    }
+
+    let pos = 0;
+    for (let i = 0; i < TRACK_LENGTH_SEGMENTS; i++) {
+        segments[i].p1.y = currentHill; 
+        if (i > 0) segments[i].p1.y = segments[i-1].p2.y;
+        pos += segments[i].hill;
+        segments[i].p2.y = pos;
+    }
+}
+
+function initializeAIDrivers() {
+    aiDrivers.length = 0;
+    for (let i = 0; i < totalAI; i++) {
+        // High-competitiveness profiling: Spaced out tight racing grid setup
+        let startingZ = (i + 1) * 220 + 100; 
+        aiDrivers.push({
+            id: i + 1,
+            name: `COMPETITOR_${i + 1}`,
+            trackZ: startingZ,
+            laneX: -0.6 + (i % 3) * 0.6, 
+            // Aggressive tuning: Top cars race fiercely close to player velocity parameters
+            baseSpeed: 74 + (i * 0.85), 
+            currentSpeed: 0,
+            targetLaneX: -0.6 + (i % 3) * 0.6,
+            laneChangeCooldown: Math.random() * 40 + 20, // Quick adaptive lane swaps
+            lap: 1,
+            finished: false
+        });
+    }
+}
+
+// --- OPTICAL PROJECTION MATH ENGINE ---
+
+function projectPoint(p, cameraX, cameraY, cameraZ, cameraDepth) {
+    let transX = p.x - cameraX;
+    let transY = p.y - cameraY;
+    let transZ = p.z - cameraZ;
+
+    if (transZ <= 0) return null; 
+
+    let scale = cameraDepth / transZ;
+    return {
+        screenX: Math.round((WIDTH / 2) + (scale * transX * WIDTH / 2)),
+        screenY: Math.round((ROAD_Y) - (scale * transY * HEIGHT / 2)), 
+        screenWidth: Math.round(scale * WIDTH)
+    };
+}
+
+function getSegmentAtZ(z) {
+    let index = Math.floor(z / SEGMENT_LENGTH) % TRACK_LENGTH_SEGMENTS;
+    if (index < 0) index += TRACK_LENGTH_SEGMENTS;
+    return segments[index];
+}
+
+// --- USER CONTROL HANDLERS ---
+
+window.addEventListener('keydown', (e) => {
+    if (gameState === 'FINISHED') return;
+    if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+        e.preventDefault();
+    }
+    if (e.key in keys) keys[e.key] = true;
+
+    if (e.key === ' ' && gameState === 'RACING') {
+        spaceTapCount++;
+        if (spaceTimeout) clearTimeout(spaceTimeout);
+
+        spaceTimeout = setTimeout(() => {
+            if (spaceTapCount === 1) {
+                if (nitroCharges > 0 && nitroActiveTimer === 0) {
+                    nitroCharges--;
+                    nitroActiveTimer = NITRO_DURATION;
+                }
+            } else if (spaceTapCount >= 3) {
+                hornVisualTimer = 45;
+            }
+            spaceTapCount = 0;
+        }, SPACE_TAP_WINDOW);
+    }
+});
+
+window.addEventListener('keyup', (e) => {
+    if (e.key in keys) keys[e.key] = false;
+});
+
+canvas.addEventListener('click', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const clickY = e.clientY - rect.top;
+
+    const wheelCenterX = WIDTH / 2;
+    const wheelCenterY = HEIGHT - 110;
+    const dist = Math.sqrt((clickX - wheelCenterX) ** 2 + (clickY - wheelCenterY) ** 2);
+
+    if (dist < 90) {
+        let now = performance.now();
